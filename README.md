@@ -20,35 +20,54 @@ No copyrighted file is included in this repo. If Rockstar Games or any affiliate
 And don't email me for asking the mirror folder. I will not reply to the email.
 
 # How to use
-1. Download the ZIP or just `git clone` it. It should have all this file and folders.
-<p align="center">
-  <img src="media/Screenshot 2026-10-07 172103.png" alt="playgta5 SC">
-</p>
 
-2. Paste your `.mirror` folder at your desired path. (It should have 19.7 GB of file size. Check the pic below.)
-<p align="center">
-  <img src="media/Screenshot 2026-10-07 172216.png" alt="Folder Properties">
-</p>
-<p align="center">
-  <img src="media/Screenshot 2026-10-07 172718.png" alt="Folder Properties">
-</p>
-<p align="center">
-  <img src="media/Screenshot 2026-10-07 172758.png" alt="Folder Properties">
-</p>
+Install Docker with Docker Compose, then clone this repository.
+Place your existing mirror at `.mirror` beside the repository files. The
+mirror is not downloaded or included in the image.
 
-3. Run the `Launch-Local.cmd` and it will automatically open the URL at `http://localhost:8000/`.
+Supported layouts are `.mirror/playgta5.com/data/` (the original export) and
+`.mirror/data/` (site contents directly). The same site root must contain
+`b/8b0b5899ed/game.wasm`, shader packs, audio-worklet.js, title art and the
+other exported assets. Files must be readable by the unprivileged container user.
 
-4. Voila!
+```sh
+docker compose up --build -d
+```
 
-# Requirement
-Scripts require standard-library Python 3.11 or newer. The bundled Python path
-in the commands above is specific to the original PC; the portable ZIP instead
-provides `runtime\python.exe` and the double-click launcher.
-Completed files and `.part` transfers are retained for resumption. Final checks
-cover inventory sizes, runtime hash samples, WASM signature, HTTP isolation,
-range reads and both batch formats. Actual gameplay requires separate browser
-validation. A public client snapshot is not the site's original development repository.
+Open http://localhost:8000/. For a mirror elsewhere, put its location in a
+local `.env` file before starting Compose.
 
-To resume with the current uncapped settings, append `--workers 32 --rate-mib 0`
-to the downloader command. Content lengths from HTTP take precedence over the
-source manifest when it is stale; mismatches are recorded explicitly.
+```dotenv
+MIRROR_PATH=/absolute/path/to/.mirror
+```
+
+On Windows with Docker Desktop, use a path like `C:/games/.mirror`.
+Missing mount directories fail instead of silently creating an empty mirror.
+Stop with `docker compose down`; view logs with `docker compose logs -f`.
+
+# Container details
+
+The builder arranges tracked HTML, JavaScript and manifests at the client URLs.
+The Python slim runner preserves the existing server's byte-range support,
+binary `POST /data/batch` endpoint (including gzip), correct WASM MIME type
+and cross-origin isolation headers. Tracked client files take precedence over
+copies in the mirror. The mirror is mounted read-only and excluded from the
+build context. The container runs unprivileged with a read-only filesystem.
+
+The bundled Windows runtime, old launchers and offline investigation artifacts
+are removed. Data and shader manifests remain because the client loads them.
+
+# Verification
+
+`docker/smoke_test.py` checks a running container using synthetic mirror assets.
+Create an otherwise empty fixture directory with `data/smoke.bin` containing
+ASCII `0123456789` and `b/8b0b5899ed/game.wasm` containing the eight bytes
+`00 61 73 6d 01 00 00 00`. Start Compose with `MIRROR_PATH` set to that directory,
+then run `python docker/smoke_test.py`. Tests cover the index, client routes,
+isolation headers, MIME, ranges, batch/gzip and traversal rejection.
+Synthetic fixtures verify the server, not gameplay.
+
+Actual gameplay requires the complete mirror and a browser supporting WebGPU
+and cross-origin-isolated shared memory. Remote browser access also requires
+HTTPS; localhost works without it. This is a local server, not a hardened
+public hosting service.

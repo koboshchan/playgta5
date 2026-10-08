@@ -1,0 +1,12 @@
+*
+!Dockerfile
+!serve_local.py
+!homepage.html
+!loader.js
+!game.js
+!io_worker.js
+!wgpu_worker.js
+!data-manifest.json
+!shader-index.json
+!docker/
+!docker/prepare_site.py

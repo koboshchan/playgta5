@@ -1,10 +1,13 @@
 """Local mirror server: isolation headers, byte ranges, and engine batch I/O."""
-import argparse, gzip, io, json, mimetypes, re, shutil, webbrowser
+import argparse, gzip, io, json, mimetypes, os, re, webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, unquote, parse_qs
 
-ROOT = Path(__file__).resolve().parent / 'mirror' / 'playgta5.com'
+ROOT = Path(__file__).resolve().parent / 'site'
+MIRROR = Path(os.environ.get('MIRROR_ROOT', str(Path(__file__).resolve().parent / '.mirror'))).resolve()
+if (MIRROR / 'playgta5.com').is_dir():
+    MIRROR = MIRROR / 'playgta5.com'
 mimetypes.add_type('application/wasm', '.wasm')
 mimetypes.add_type('text/javascript', '.js')
 
@@ -12,6 +15,17 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         self.byte_range = None
         super().__init__(*args, directory=str(ROOT), **kwargs)
+
+    def translate_path(self, path):
+        # Image-owned client files take precedence; large assets stay on the mount.
+        relative = unquote(urlsplit(path).path).lstrip('/') or 'index.html'
+        for root in (ROOT, MIRROR):
+            root = root.resolve()
+            candidate = (root / relative).resolve()
+            if candidate.is_relative_to(root) and candidate.is_file():
+                return str(candidate)
+        # Never expose directory listings or traversal targets.
+        return str(ROOT / '__not_found__')
 
     def end_headers(self):
         self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
@@ -75,8 +89,10 @@ class Handler(SimpleHTTPRequestHandler):
             if not isinstance(runs, list) or len(runs) > 1000:
                 raise ValueError('invalid batch')
             selected = []
-            data_root = (ROOT / 'data').resolve()
+            data_root = (MIRROR / 'data').resolve()
             for name, start, end in runs:
+                if not isinstance(name, str) or type(start) is not int or type(end) is not int:
+                    raise ValueError('invalid file/range')
                 file = (data_root / name).resolve()
                 if not file.is_relative_to(data_root) or start < 0 or end < start:
                     raise ValueError('invalid file/range')
@@ -106,10 +122,11 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser()
+    args.add_argument('--host', default='127.0.0.1')
     args.add_argument('--port', type=int, default=8000)
     args.add_argument('--open', action='store_true', help='open the default browser after binding')
     options = args.parse_args()
-    server = ThreadingHTTPServer(('127.0.0.1', options.port), Handler)
+    server = ThreadingHTTPServer((options.host, options.port), Handler)
     address = 'http://localhost:%d/' % server.server_port
     print('Local mirror: %s (Ctrl+C to stop)' % address, flush=True)
     if options.open:

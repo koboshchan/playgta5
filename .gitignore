@@ -1,2 +1,5 @@
 mirror/
-media/
+.mirror/
+site/
+__pycache__/
+.env
