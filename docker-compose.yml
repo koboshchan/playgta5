@@ -1,0 +1,18 @@
+services:
+  playgta5:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - type: bind
+        source: ${MIRROR_PATH:-./.mirror}
+        target: /mirror
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
